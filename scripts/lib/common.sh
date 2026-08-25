@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-PROJECT_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR:-$(dirname -- "$0")}/.." && pwd)
+# Used by callers after this library is sourced.
+# shellcheck disable=SC2034
+PROJECT_ROOT=$(CDPATH='' cd -- "${SCRIPT_DIR:-$(dirname -- "$0")}/.." && pwd)
 
 info() {
     printf '%s\n' "INFO: $*"

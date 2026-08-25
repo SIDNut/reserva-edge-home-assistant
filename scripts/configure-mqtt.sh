@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck source=scripts/lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 
@@ -33,7 +33,9 @@ while IFS= read -r raw_line || [ -n "$raw_line" ]; do
     [ "$key" = MQTT_TLS ] && tls_value=$value
 done < "$CONFIG"
 $seen_host || die "MQTT_HOST is required"
-$seen_password || warn "MQTT_PASSWORD is blank; use only if the broker intentionally allows it"
+if ! $seen_password; then
+    warn "MQTT_PASSWORD is blank; use only if the broker intentionally allows it"
+fi
 case "$tls_value" in true|false) ;; *) die "MQTT_TLS must be true or false" ;; esac
 
 install -d -o root -g root -m 0755 /etc/reserva-edge
@@ -56,5 +58,7 @@ if [ "${ENABLE_LED:-false}" = true ]; then
     enabled=$((enabled + 1))
 fi
 
-[ "$enabled" -gt 0 ] || warn "MQTT config installed, but no optional hardware bridge was enabled"
+if [ "$enabled" -eq 0 ]; then
+    warn "MQTT config installed, but no optional hardware bridge was enabled"
+fi
 info "MQTT configuration installed with mode 0600; remove the source config when no longer needed"

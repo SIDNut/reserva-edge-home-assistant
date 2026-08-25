@@ -7,7 +7,7 @@ CONFIG=/etc/reserva-edge/profile.env
 # shellcheck disable=SC1090
 . "$CONFIG"
 
-export HOME=$PROFILE_HOME
+export HOME="$PROFILE_HOME"
 export NO_AT_BRIDGE=0
 
 if command -v gsettings >/dev/null 2>&1; then
@@ -48,4 +48,3 @@ while :; do
         --disable-features=EncryptedClientHello,EncryptedClientHelloQuic,UseDnsHttpsSvcb || true
     sleep 3
 done
-

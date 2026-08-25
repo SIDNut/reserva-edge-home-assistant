@@ -13,34 +13,65 @@ for path in \
     /usr/local/bin/reserva-edge-kiosk \
     /usr/local/bin/reserva-edge-touch-session \
     /etc/systemd/system/reserva-edge-kiosk.service; do
-    [ -e "$path" ] && pass "$path" || fail "missing $path"
+    if [ -e "$path" ]; then
+        pass "$path"
+    else
+        fail "missing $path"
+    fi
 done
 
-command -v touchkio >/dev/null 2>&1 && pass "TouchKio executable" || fail "TouchKio executable missing"
-systemctl is-enabled --quiet reserva-edge-kiosk.service && pass "kiosk enabled" || fail "kiosk not enabled"
-systemctl is-active --quiet reserva-edge-kiosk.service && pass "kiosk active" || fail "kiosk not active"
+if command -v touchkio >/dev/null 2>&1; then
+    pass "TouchKio executable"
+else
+    fail "TouchKio executable missing"
+fi
+if systemctl is-enabled --quiet reserva-edge-kiosk.service; then
+    pass "kiosk enabled"
+else
+    fail "kiosk not enabled"
+fi
+if systemctl is-active --quiet reserva-edge-kiosk.service; then
+    pass "kiosk active"
+else
+    fail "kiosk not active"
+fi
 
 if [ -f /etc/reserva-edge/mqtt.env ]; then
     mode=$(stat -c '%a' /etc/reserva-edge/mqtt.env 2>/dev/null || true)
-    [ "$mode" = 600 ] && pass "MQTT config mode 0600" || fail "MQTT config mode is ${mode:-unknown}, expected 600"
+    if [ "$mode" = 600 ]; then
+        pass "MQTT config mode 0600"
+    else
+        fail "MQTT config mode is ${mode:-unknown}, expected 600"
+    fi
 else
     warn "MQTT config not installed; optional bridges are expected to be disabled"
 fi
 
 for unit in reserva-edge-nfc-mqtt.service reserva-edge-led-mqtt.service; do
     if systemctl is-enabled --quiet "$unit" 2>/dev/null; then
-        systemctl is-active --quiet "$unit" && pass "$unit active" || fail "$unit enabled but inactive"
+        if systemctl is-active --quiet "$unit"; then
+            pass "$unit active"
+        else
+            fail "$unit enabled but inactive"
+        fi
     else
         warn "$unit disabled"
     fi
 done
 
-[ -r /sys/class/backlight/intel_backlight/max_brightness ] && pass "backlight readable" || fail "backlight missing"
-[ -r /proc/bus/input/devices ] && grep -q FTSC1000 /proc/bus/input/devices && pass "touchscreen present" || fail "touchscreen missing"
+if [ -r /sys/class/backlight/intel_backlight/max_brightness ]; then
+    pass "backlight readable"
+else
+    fail "backlight missing"
+fi
+if [ -r /proc/bus/input/devices ] && grep -q FTSC1000 /proc/bus/input/devices; then
+    pass "touchscreen present"
+else
+    fail "touchscreen missing"
+fi
 
 if [ "$failures" -gt 0 ]; then
     printf '%s\n' "$failures smoke-test check(s) failed." >&2
     exit 1
 fi
 printf '%s\n' 'Smoke test passed. No hardware was activated.'
-

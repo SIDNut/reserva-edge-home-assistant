@@ -16,7 +16,9 @@ warn() { printf 'WARN  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; failures=$((failures + 1)); }
 
 read_first() {
-    [ -r "$1" ] && head -n 1 "$1" 2>/dev/null || true
+    if [ -r "$1" ]; then
+        head -n 1 "$1" 2>/dev/null || true
+    fi
 }
 
 printf '%s\n' 'Reserva Edge profile preflight (read-only)'
@@ -35,7 +37,11 @@ else
 fi
 
 arch=$(uname -m 2>/dev/null || true)
-[ "$arch" = x86_64 ] && pass "x86-64 architecture" || fail "Expected x86_64; found ${arch:-unknown}"
+if [ "$arch" = x86_64 ]; then
+    pass "x86-64 architecture"
+else
+    fail "Expected x86_64; found ${arch:-unknown}"
+fi
 
 product=$(read_first /sys/class/dmi/id/product_name)
 board=$(read_first /sys/class/dmi/id/board_name)
@@ -45,7 +51,11 @@ case "$product $board" in
 esac
 
 firmware_bits=$(read_first /sys/firmware/efi/fw_platform_size)
-[ "$firmware_bits" = 64 ] && pass "64-bit UEFI" || fail "Expected 64-bit UEFI; found ${firmware_bits:-not-booted-via-UEFI}"
+if [ "$firmware_bits" = 64 ]; then
+    pass "64-bit UEFI"
+else
+    fail "Expected 64-bit UEFI; found ${firmware_bits:-not-booted-via-UEFI}"
+fi
 
 if [ -r /sys/class/backlight/intel_backlight/max_brightness ]; then
     pass "Intel backlight interface"
@@ -64,9 +74,17 @@ for removable in /sys/block/mmcblk*/removable; do
     [ -r "$removable" ] || continue
     if [ "$(read_first "$removable")" = 0 ]; then emmc_found=true; break; fi
 done
-$emmc_found && pass "non-removable eMMC present" || warn "no non-removable mmcblk device detected"
+if $emmc_found; then
+    pass "non-removable eMMC present"
+else
+    warn "no non-removable mmcblk device detected"
+fi
 
-[ -e /sys/class/nfc/nfc0 ] && pass "optional NXP NFC interface" || warn "optional NFC interface not detected"
+if [ -e /sys/class/nfc/nfc0 ]; then
+    pass "optional NXP NFC interface"
+else
+    warn "optional NFC interface not detected"
+fi
 
 if command -v gpiodetect >/dev/null 2>&1 && gpiodetect 2>/dev/null | grep -q '\[INT33FC:01\]'; then
     pass "optional verified LED GPIO controller"
@@ -90,4 +108,3 @@ if [ "$failures" -gt 0 ]; then
 fi
 
 printf '%s\n' 'Preflight passed. No changes were made.'
-

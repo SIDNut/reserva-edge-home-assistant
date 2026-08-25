@@ -7,7 +7,7 @@ CONFIG=/etc/reserva-edge/profile.env
 # shellcheck disable=SC1090
 . "$CONFIG"
 
-export HOME=$PROFILE_HOME
+export HOME="$PROFILE_HOME"
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=openbox
 export DESKTOP_SESSION=openbox
@@ -41,4 +41,3 @@ if command -v pulseaudio >/dev/null 2>&1; then
 fi
 
 exec dbus-run-session -- /usr/local/bin/reserva-edge-touch-session
-
