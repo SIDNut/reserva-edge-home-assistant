@@ -1,0 +1,29 @@
+[Unit]
+Description=Reserva Edge Home Assistant kiosk
+Documentation=https://github.com/SIDNut/reserva-edge-home-assistant
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=@PROFILE_USER@
+WorkingDirectory=@PROFILE_HOME@
+Environment=HOME=@PROFILE_HOME@
+Environment=XDG_RUNTIME_DIR=/run/reserva-edge
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty-force
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+UtmpIdentifier=tty1
+RuntimeDirectory=reserva-edge
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/xinit /usr/local/bin/reserva-edge-kiosk -- :0 vt1 -keeptty -nolisten tcp
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Reserva Edge NFC manager
+Documentation=https://github.com/linux-nfc/neard
+After=dbus.service neard.service
+Requires=dbus.service
+ConditionPathExists=/sys/class/nfc/nfc0
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/reserva-edge-neard-start
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

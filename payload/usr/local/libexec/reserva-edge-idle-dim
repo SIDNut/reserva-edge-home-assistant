@@ -1,0 +1,75 @@
+#!/bin/sh
+set -u
+
+CONFIG=/etc/reserva-edge/profile.env
+BACKLIGHT=/sys/class/backlight/intel_backlight
+[ -r "$CONFIG" ] || exit 1
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+STATE_FILE=$PROFILE_HOME/.local/state/reserva-edge-dim-brightness
+[ -r "$BACKLIGHT/max_brightness" ] || exit 0
+command -v xprintidle >/dev/null 2>&1 || exit 0
+[ "$IDLE_DIM_SECONDS" -gt 0 ] || exit 0
+
+exec 9>/tmp/reserva-edge-idle-dim.lock
+flock -n 9 || exit 0
+
+max=$(cat "$BACKLIGHT/max_brightness")
+dim=$(( (max + 99) / 100 ))
+threshold=$(( IDLE_DIM_SECONDS * 1000 ))
+restore=$(cat "$BACKLIGHT/brightness")
+dimmed=0
+
+mkdir -p "$(dirname "$STATE_FILE")"
+
+write_brightness() {
+    printf '%s\n' "$1" | sudo -n /usr/bin/tee "$BACKLIGHT/brightness" >/dev/null
+}
+
+valid_restore() {
+    [ "$1" -gt "$dim" ] 2>/dev/null && [ "$1" -le "$max" ] 2>/dev/null
+}
+
+restore_panel() {
+    valid_restore "$restore" && write_brightness "$restore"
+    dimmed=0
+}
+
+cleanup() {
+    [ "$dimmed" -eq 0 ] || restore_panel || true
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
+if [ "$restore" -le "$dim" ] && [ -r "$STATE_FILE" ]; then
+    saved=$(cat "$STATE_FILE")
+    if valid_restore "$saved"; then
+        restore=$saved
+        write_brightness "$restore"
+    fi
+fi
+
+while :; do
+    idle=$(xprintidle 2>/dev/null || printf '0')
+    current=$(cat "$BACKLIGHT/brightness")
+    if [ "$idle" -ge "$threshold" ]; then
+        if [ "$dimmed" -eq 0 ]; then
+            if valid_restore "$current"; then
+                restore=$current
+                printf '%s\n' "$restore" > "$STATE_FILE"
+            fi
+            write_brightness "$dim"
+            dimmed=1
+        elif [ "$current" -gt "$dim" ]; then
+            restore=$current
+            dimmed=0
+        fi
+    elif [ "$dimmed" -eq 1 ]; then
+        restore_panel
+    elif valid_restore "$current"; then
+        restore=$current
+    fi
+    sleep 0.2
+done
+

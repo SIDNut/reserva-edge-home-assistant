@@ -1,0 +1,185 @@
+#!/usr/bin/python3
+"""Expose the verified ER5A0 status and white LEDs through MQTT discovery."""
+
+from __future__ import annotations
+
+import json
+import logging
+import signal
+import subprocess
+import sys
+import time
+
+import gpiod
+from gpiod.line import Direction, Value
+
+sys.path.insert(0, "/usr/local/lib/reserva-edge")
+from mqtt_common import device_block, load_config, make_client  # noqa: E402
+
+
+LOG = logging.getLogger("reserva-edge-led-mqtt")
+GPIO_LABEL = "INT33FC:01"
+STATUS_VALUES = {
+    "off": (0, 0),
+    "green": (0, 1),
+    "red": (1, 0),
+    "amber": (1, 1),
+}
+
+
+def find_gpio_chip() -> str:
+    output = subprocess.check_output(["/usr/bin/gpiodetect"], text=True)
+    marker = f"[{GPIO_LABEL}]"
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[1] == marker:
+            return fields[0]
+    raise RuntimeError(f"verified GPIO controller {GPIO_LABEL} not found")
+
+
+class Bridge:
+    def __init__(self):
+        self.config = load_config()
+        self.base = f"{self.config['topic_root']}/led"
+        self.status = "off"
+        self.white = False
+        self.running = True
+        self.last_outputs = None
+
+        settings = gpiod.LineSettings(direction=Direction.OUTPUT, output_value=Value.INACTIVE)
+        self.lines = gpiod.request_lines(
+            f"/dev/{find_gpio_chip()}",
+            consumer="reserva-edge-led-mqtt",
+            config={15: settings, 17: settings, 23: settings},
+        )
+
+        self.client = make_client("reserva-edge-led", self.config)
+        self.client.will_set(f"{self.base}/availability", "offline", qos=1, retain=True)
+        self.client.on_connect = self.on_connect
+        self.client.on_disconnect = self.on_disconnect
+        self.client.on_message = self.on_message
+
+    def apply_outputs(self):
+        red, green = STATUS_VALUES[self.status]
+        outputs = (red, green, int(self.white))
+        if outputs == self.last_outputs:
+            return
+        self.lines.set_values({
+            15: Value.ACTIVE if red else Value.INACTIVE,
+            17: Value.ACTIVE if green else Value.INACTIVE,
+            23: Value.ACTIVE if self.white else Value.INACTIVE,
+        })
+        self.last_outputs = outputs
+
+    def publish_discovery(self):
+        unique = str(self.config["device_id"])
+        prefix = str(self.config["discovery_prefix"])
+        common = {
+            "availability_topic": f"{self.base}/availability",
+            "device": device_block(self.config),
+            "origin": {"name": "reserva-edge-led-mqtt", "sw_version": "0.1.0"},
+        }
+        status = {
+            **common,
+            "name": "Status LED",
+            "unique_id": f"{unique}_status_led",
+            "command_topic": f"{self.base}/status/set",
+            "state_topic": f"{self.base}/status/state",
+            "options": ["Off", "Green", "Red", "Amber"],
+            "icon": "mdi:led-on",
+        }
+        white = {
+            **common,
+            "name": "White LED",
+            "unique_id": f"{unique}_white_led",
+            "command_topic": f"{self.base}/white/set",
+            "state_topic": f"{self.base}/white/state",
+            "payload_on": "ON",
+            "payload_off": "OFF",
+            "icon": "mdi:led-outline",
+        }
+        self.client.publish(
+            f"{prefix}/select/{unique}_status_led/config",
+            json.dumps(status, separators=(",", ":")), qos=1, retain=True,
+        )
+        self.client.publish(
+            f"{prefix}/switch/{unique}_white_led/config",
+            json.dumps(white, separators=(",", ":")), qos=1, retain=True,
+        )
+
+    def publish_state(self):
+        self.client.publish(f"{self.base}/status/state", self.status.title(), qos=1, retain=True)
+        self.client.publish(f"{self.base}/white/state", "ON" if self.white else "OFF", qos=1, retain=True)
+
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code != 0:
+            LOG.error("MQTT connection rejected: %s", reason_code)
+            return
+        client.subscribe(f"{self.base}/status/set", qos=1)
+        client.subscribe(f"{self.base}/white/set", qos=1)
+        self.publish_discovery()
+        self.publish_state()
+        client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
+        LOG.info("Connected to MQTT broker")
+
+    @staticmethod
+    def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
+        if reason_code != 0:
+            LOG.warning("Unexpected MQTT disconnect: %s", reason_code)
+
+    def on_message(self, client, userdata, message):
+        payload = message.payload.decode("utf-8").strip()
+        try:
+            if message.topic == f"{self.base}/status/set":
+                requested = payload.lower()
+                if requested not in STATUS_VALUES:
+                    raise ValueError(f"unknown status LED value: {payload!r}")
+                self.status = requested
+            elif message.topic == f"{self.base}/white/set":
+                if payload.upper() not in {"ON", "OFF"}:
+                    raise ValueError(f"unknown white LED value: {payload!r}")
+                self.white = payload.upper() == "ON"
+            else:
+                return
+            self.apply_outputs()
+            self.publish_state()
+        except Exception:
+            LOG.exception("Rejected MQTT LED command")
+
+    def stop(self, *_args):
+        self.running = False
+
+    def run(self):
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
+        self.apply_outputs()
+        self.client.connect(str(self.config["host"]), int(self.config["port"]), keepalive=30)
+        self.client.loop_start()
+        try:
+            while self.running:
+                time.sleep(0.5)
+        finally:
+            self.status = "off"
+            self.white = False
+            try:
+                self.apply_outputs()
+            finally:
+                self.lines.release()
+            if self.client.is_connected():
+                self.client.publish(f"{self.base}/availability", "offline", qos=1, retain=True)
+                self.client.disconnect()
+            self.client.loop_stop()
+
+
+def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    Bridge().run()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        LOG.exception("Reserva Edge LED bridge stopped")
+        sys.exit(1)
+

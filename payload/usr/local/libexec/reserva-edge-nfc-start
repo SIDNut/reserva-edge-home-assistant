@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+service=org.neard
+object=/org/neard/nfc0
+interface=org.neard.Adapter
+
+attempt=0
+until busctl get-property "$service" "$object" "$interface" Powered >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 30 ] || { printf '%s\n' 'NFC adapter did not appear within 30 seconds' >&2; exit 1; }
+    sleep 1
+done
+
+if ! busctl get-property "$service" "$object" "$interface" Powered | grep -q 'true$'; then
+    busctl set-property "$service" "$object" "$interface" Powered b true
+fi
+if ! busctl get-property "$service" "$object" "$interface" Polling | grep -q 'true$'; then
+    busctl call "$service" "$object" "$interface" StartPollLoop s Initiator
+fi
+

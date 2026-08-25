@@ -1,0 +1,3 @@
+# Narrow privileges used by the verified ER5A0 kiosk profile.
+@PROFILE_USER@ ALL=(root) NOPASSWD: /usr/bin/true, /usr/bin/tee /sys/class/backlight/intel_backlight/brightness, /usr/sbin/reboot, /usr/sbin/shutdown -h now
+

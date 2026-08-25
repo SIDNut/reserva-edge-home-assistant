@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+# Reuse a distribution-managed neard instance when it already owns D-Bus.
+if busctl --system --list 2>/dev/null | awk '{print $1}' | grep -qx org.neard; then
+    exec sleep infinity
+fi
+
+for executable in /usr/libexec/nfc/neard /usr/lib/neard/neard /usr/sbin/neard; do
+    if [ -x "$executable" ]; then
+        exec "$executable" --nodaemon
+    fi
+done
+printf '%s\n' 'neard executable not found' >&2
+exit 1

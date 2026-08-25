@@ -1,0 +1,173 @@
+#!/usr/bin/python3
+"""Publish ER5A0 NFC tag arrivals through Home Assistant MQTT discovery."""
+
+from __future__ import annotations
+
+import json
+import logging
+import signal
+import sys
+import time
+
+import dbus
+
+sys.path.insert(0, "/usr/local/lib/reserva-edge")
+from mqtt_common import device_block, load_config, make_client  # noqa: E402
+
+
+LOG = logging.getLogger("reserva-edge-nfc-mqtt")
+
+
+def jsonable(value):
+    if isinstance(value, (dbus.String, dbus.ObjectPath, dbus.Signature)):
+        return str(value)
+    if isinstance(value, (dbus.Boolean, bool)):
+        return bool(value)
+    if isinstance(value, (dbus.Byte, dbus.Int16, dbus.UInt16, dbus.Int32,
+                          dbus.UInt32, dbus.Int64, dbus.UInt64, int)):
+        return int(value)
+    if isinstance(value, (dbus.Double, float)):
+        return float(value)
+    if isinstance(value, (dbus.Array, list, tuple)):
+        return [jsonable(item) for item in value]
+    if isinstance(value, (dbus.Dictionary, dict)):
+        return {str(key): jsonable(child) for key, child in value.items()}
+    return str(value)
+
+
+def uid_hex(uid) -> str:
+    if isinstance(uid, (dbus.Array, list, tuple)):
+        return "".join(f"{int(byte):02X}" for byte in uid)
+    return str(uid).replace(":", "").replace(" ", "").upper()
+
+
+class Bridge:
+    def __init__(self):
+        self.config = load_config()
+        self.base = f"{self.config['topic_root']}/nfc"
+        self.client = make_client("reserva-edge-nfc", self.config)
+        self.client.will_set(f"{self.base}/availability", "offline", qos=1, retain=True)
+        self.client.on_connect = self.on_connect
+        self.client.on_disconnect = self.on_disconnect
+        self.running = True
+        self.seen_paths: set[str] = set()
+        self.last_emitted: dict[str, float] = {}
+        root = dbus.SystemBus().get_object("org.neard", "/")
+        self.objects = dbus.Interface(root, "org.freedesktop.DBus.ObjectManager")
+
+    def publish_discovery(self):
+        unique = str(self.config["device_id"])
+        prefix = str(self.config["discovery_prefix"])
+        common = {
+            "availability_topic": f"{self.base}/availability",
+            "device": device_block(self.config),
+            "origin": {"name": "reserva-edge-nfc-mqtt", "sw_version": "0.1.0"},
+        }
+        messages = {
+            f"{prefix}/event/{unique}_nfc_tag/config": {
+                **common,
+                "name": "NFC Tag",
+                "unique_id": f"{unique}_nfc_tag",
+                "state_topic": f"{self.base}/event",
+                "event_types": ["tag_scanned"],
+                "icon": "mdi:nfc",
+            },
+            f"{prefix}/sensor/{unique}_nfc_last/config": {
+                **common,
+                "name": "NFC Last Tag",
+                "unique_id": f"{unique}_nfc_last",
+                "state_topic": f"{self.base}/last",
+                "value_template": "{{ value_json.tag_id }}",
+                "json_attributes_topic": f"{self.base}/last",
+                "entity_category": "diagnostic",
+                "icon": "mdi:nfc-variant",
+            },
+            f"{prefix}/binary_sensor/{unique}_nfc_present/config": {
+                **common,
+                "name": "NFC Tag Present",
+                "unique_id": f"{unique}_nfc_present",
+                "state_topic": f"{self.base}/present",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "entity_category": "diagnostic",
+            },
+        }
+        for topic, payload in messages.items():
+            self.client.publish(topic, json.dumps(payload, separators=(",", ":")), qos=1, retain=True)
+
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code != 0:
+            LOG.error("MQTT connection rejected: %s", reason_code)
+            return
+        self.publish_discovery()
+        client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
+        client.publish(f"{self.base}/present", "OFF", qos=1, retain=True)
+        LOG.info("Connected to MQTT broker")
+
+    @staticmethod
+    def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
+        if reason_code != 0:
+            LOG.warning("Unexpected MQTT disconnect: %s", reason_code)
+
+    def stop(self, *_args):
+        self.running = False
+
+    def publish_tag(self, path: str, properties):
+        tag_id = uid_hex(properties.get("Uid", []))
+        if not tag_id:
+            return
+        now = time.monotonic()
+        if now - self.last_emitted.get(tag_id, 0) < 2:
+            return
+        self.last_emitted[tag_id] = now
+        payload = {
+            "event_type": "tag_scanned",
+            "tag_id": tag_id,
+            "protocol": jsonable(properties.get("Protocol", "unknown")),
+            "tag_type": jsonable(properties.get("Type", "unknown")),
+            "read_only": jsonable(properties.get("ReadOnly", False)),
+            "records": jsonable(properties.get("Records", [])),
+        }
+        encoded = json.dumps(payload, separators=(",", ":"))
+        self.client.publish(f"{self.base}/event", encoded, qos=1)
+        self.client.publish(f"{self.base}/last", encoded, qos=1, retain=True)
+
+    def run(self):
+        self.client.connect_async(str(self.config["host"]), int(self.config["port"]), keepalive=30)
+        self.client.loop_start()
+        try:
+            while self.running:
+                try:
+                    objects = self.objects.GetManagedObjects()
+                    tags = {
+                        str(path): interfaces["org.neard.Tag"]
+                        for path, interfaces in objects.items()
+                        if "org.neard.Tag" in interfaces
+                    }
+                    current = set(tags)
+                    for path in current - self.seen_paths:
+                        self.publish_tag(path, tags[path])
+                    if bool(current) != bool(self.seen_paths):
+                        self.client.publish(f"{self.base}/present", "ON" if current else "OFF", qos=1, retain=True)
+                    self.seen_paths = current
+                except dbus.DBusException as exc:
+                    LOG.warning("Unable to query neard: %s", exc.get_dbus_name())
+                time.sleep(0.4)
+        finally:
+            if self.client.is_connected():
+                self.client.publish(f"{self.base}/availability", "offline", qos=1, retain=True)
+                self.client.disconnect()
+            self.client.loop_stop()
+
+
+def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    bridge = Bridge()
+    signal.signal(signal.SIGTERM, bridge.stop)
+    signal.signal(signal.SIGINT, bridge.stop)
+    bridge.run()
+
+
+if __name__ == "__main__":
+    main()
+

@@ -1,0 +1,13 @@
+[Unit]
+Description=Enable Reserva Edge NFC polling
+After=reserva-edge-neard.service
+Requires=reserva-edge-neard.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/reserva-edge-nfc-start
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+

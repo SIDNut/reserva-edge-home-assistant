@@ -1,0 +1,25 @@
+# Local configuration and credentials
+profile.env
+mqtt.env
+*.local.env
+
+# Logs, reports, packages, and operating-system images
+reports/
+*.log
+*.deb
+*.iso
+*.img
+*.img.*
+*.tar
+*.tar.*
+*.zip
+
+# Python and editor artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

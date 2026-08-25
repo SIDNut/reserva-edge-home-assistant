@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+CONFIG=/etc/reserva-edge/profile.env
+[ -r "$CONFIG" ] || { printf 'Missing %s\n' "$CONFIG" >&2; exit 1; }
+# Root-owned, installer-generated, non-secret configuration.
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+export HOME=$PROFILE_HOME
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=openbox
+export DESKTOP_SESSION=openbox
+export NO_AT_BRIDGE=0
+
+xset dpms 0 0 0 2>/dev/null || true
+xset -dpms 2>/dev/null || true
+xset s off 2>/dev/null || true
+xset s noblank 2>/dev/null || true
+xrandr -o "$SCREEN_ROTATION"
+
+case "$SCREEN_ROTATION" in
+    right)    matrix='0 1 0 -1 0 1 0 0 1' ;;
+    left)     matrix='0 -1 1 1 0 0 0 0 1' ;;
+    inverted) matrix='-1 0 1 0 -1 1 0 0 1' ;;
+    normal)   matrix='1 0 0 0 1 0 0 0 1' ;;
+    *) printf 'Invalid rotation: %s\n' "$SCREEN_ROTATION" >&2; exit 1 ;;
+esac
+
+if command -v xinput >/dev/null 2>&1; then
+    # Intentional matrix word splitting into nine numeric arguments.
+    # shellcheck disable=SC2086
+    xinput set-prop 'FTSC1000:00 2808:5012' 'Coordinate Transformation Matrix' $matrix
+fi
+
+openbox-session &
+unclutter --timeout 0.5 --ignore-scrolling --root &
+
+if command -v pulseaudio >/dev/null 2>&1; then
+    pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+fi
+
+exec dbus-run-session -- /usr/local/bin/reserva-edge-touch-session
+

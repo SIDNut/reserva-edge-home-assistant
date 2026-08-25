@@ -1,0 +1,51 @@
+#!/bin/sh
+set -u
+
+CONFIG=/etc/reserva-edge/profile.env
+[ -r "$CONFIG" ] || { printf 'Missing %s\n' "$CONFIG" >&2; exit 1; }
+# Root-owned, installer-generated, non-secret configuration.
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+export HOME=$PROFILE_HOME
+export NO_AT_BRIDGE=0
+
+if command -v gsettings >/dev/null 2>&1; then
+    gsettings set org.gnome.desktop.interface toolkit-accessibility true
+    gsettings set org.onboard.auto-show enabled true
+    gsettings set org.onboard.icon-palette in-use true
+    # A docked window is stacked below fullscreen TouchKio in Openbox. The
+    # floating override-redirect window has been verified above the kiosk.
+    gsettings set org.onboard.window docking-enabled false
+    gsettings set org.onboard.window force-to-top true
+    gsettings set org.onboard.window.portrait width "$ONBOARD_WIDTH"
+    gsettings set org.onboard.window.portrait height "$ONBOARD_HEIGHT"
+    gsettings set org.onboard.window.portrait x "$ONBOARD_X"
+    gsettings set org.onboard.window.portrait y "$ONBOARD_Y"
+fi
+
+if command -v onboard >/dev/null 2>&1; then
+    onboard >/tmp/reserva-edge-onboard.log 2>&1 &
+fi
+
+if [ "$IDLE_DIM_SECONDS" -gt 0 ] && command -v xprintidle >/dev/null 2>&1; then
+    /usr/local/libexec/reserva-edge-idle-dim >/tmp/reserva-edge-idle-dim.log 2>&1 &
+fi
+
+mkdir -p "$PROFILE_HOME/.config/reserva-edge"
+while :; do
+    if [ -e "$PROFILE_HOME/.config/reserva-edge/kiosk.hold" ]; then
+        sleep 1
+        continue
+    fi
+    touchkio \
+        "--web-url=$HA_URL" \
+        "--web-theme=$TOUCHKIO_THEME" \
+        "--web-zoom=$TOUCHKIO_ZOOM" \
+        "--web-widget=$TOUCHKIO_WIDGET" \
+        --force-renderer-accessibility \
+        --disable-quic \
+        --disable-features=EncryptedClientHello,EncryptedClientHelloQuic,UseDnsHttpsSvcb || true
+    sleep 3
+done
+
