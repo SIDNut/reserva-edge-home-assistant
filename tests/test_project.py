@@ -26,6 +26,7 @@ class ProjectTests(unittest.TestCase):
             "scripts/configure-mqtt.sh",
             "scripts/uninstall-profile.sh",
             "scripts/smoke-test.sh",
+            "docs/debian-install.md",
             "docs/recovery.md",
             "docs/hardware.md",
         ]

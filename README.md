@@ -57,11 +57,19 @@ The project intentionally provides no extraction or factory-image tooling.
 ### 2. Install official Debian
 
 Use the official [Debian 13 amd64 installation media](https://www.debian.org/CD/)
-and [installation guide](https://www.debian.org/releases/trixie/amd64/).
+and [installation guide](https://www.debian.org/releases/trixie/amd64/). Follow
+the ER5A0-specific [clean Debian installation checklist](docs/debian-install.md)
+before applying this profile.
+
+Use Debian Installer (for example, the amd64 netinst image or the installer
+entry on official live media). **Do not use the Debian Live Calamares desktop
+installer for the tested minimal path:** it copies the live desktop and enables
+a display manager, which conflicts with this profile's dedicated tty1 kiosk.
 
 Recommended choices:
 
-- standard Debian system without a desktop environment;
+- in task selection, only **SSH server** and **standard system utilities**;
+- no Debian desktop environment and no display manager;
 - a normal non-root administrator account;
 - wired DHCP for the first installation; and
 - SSH server, if remote administration is required.
