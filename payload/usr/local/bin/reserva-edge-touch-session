@@ -13,7 +13,12 @@ export NO_AT_BRIDGE=0
 if command -v gsettings >/dev/null 2>&1; then
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
     gsettings set org.onboard.auto-show enabled true
-    gsettings set org.onboard.icon-palette in-use true
+    # Auto-show provides the keyboard only while a text field is focused, so
+    # the persistent floating launcher is unnecessary on a dedicated kiosk.
+    gsettings set org.onboard.icon-palette in-use false
+    gsettings set org.onboard layout /usr/share/onboard/layouts/Phone.onboard
+    gsettings set org.onboard theme /usr/share/onboard/themes/Droid.theme
+    gsettings set org.onboard system-theme-tracking-enabled false
     # A docked window is stacked below fullscreen TouchKio in Openbox. The
     # floating override-redirect window has been verified above the kiosk.
     gsettings set org.onboard.window docking-enabled false

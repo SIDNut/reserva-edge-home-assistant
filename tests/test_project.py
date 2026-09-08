@@ -125,6 +125,18 @@ class ProjectTests(unittest.TestCase):
         self.assertIn("systemctl enable reserva-edge-kiosk.service", installer)
         self.assertIn("systemctl restart reserva-edge-kiosk.service", installer)
 
+    def test_onboard_kiosk_defaults(self):
+        session = (
+            ROOT / "payload/usr/local/bin/reserva-edge-touch-session"
+        ).read_text(encoding="utf-8")
+        self.assertIn("org.onboard.auto-show enabled true", session)
+        self.assertIn("org.onboard.icon-palette in-use false", session)
+        self.assertIn("/usr/share/onboard/layouts/Phone.onboard", session)
+        self.assertIn("/usr/share/onboard/themes/Droid.theme", session)
+        self.assertIn("org.onboard system-theme-tracking-enabled false", session)
+        self.assertIn("org.onboard.window docking-enabled false", session)
+        self.assertIn("org.onboard.window force-to-top true", session)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
