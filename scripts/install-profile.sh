@@ -77,7 +77,7 @@ if [ -n "$TOUCHKIO_DEB" ]; then
     [ -f "$TOUCHKIO_DEB" ] || die "TouchKio package not found: $TOUCHKIO_DEB"
 fi
 
-base_packages='xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils xinput openbox unclutter-xfixes onboard at-spi2-core libglib2.0-bin pulseaudio pulseaudio-utils alsa-ucm-conf xprintidle util-linux sudo ca-certificates python3'
+base_packages='xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils xinput openbox unclutter-xfixes onboard at-spi2-core libglib2.0-bin pulseaudio pulseaudio-utils alsa-ucm-conf xprintidle util-linux sudo ca-certificates python3 avahi-daemon libnss-mdns'
 nfc_packages='neard python3-dbus python3-paho-mqtt'
 led_packages='gpiod python3-libgpiod python3-paho-mqtt'
 

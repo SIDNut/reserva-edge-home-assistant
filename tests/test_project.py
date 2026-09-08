@@ -115,6 +115,11 @@ class ProjectTests(unittest.TestCase):
         installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
         self.assertIn('$PROFILE_HOME/.local/share/xorg', installer)
 
+    def test_installer_supports_default_mdns_dashboard_url(self):
+        installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
+        self.assertIn("avahi-daemon", installer)
+        self.assertIn("libnss-mdns", installer)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
