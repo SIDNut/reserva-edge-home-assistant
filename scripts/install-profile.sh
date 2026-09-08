@@ -33,7 +33,16 @@ is_true "$ALLOW_UNVERIFIED_HARDWARE" && preflight_arg=--allow-unsupported
 "$SCRIPT_DIR/preflight.sh" $preflight_arg
 
 if [ "$ENABLE_NFC" = auto ]; then
-    [ -e /sys/class/nfc/nfc0 ] && ENABLE_NFC=true || ENABLE_NFC=false
+    if [ -e /sys/class/nfc/nfc0 ]; then
+        if apt-cache show neard >/dev/null 2>&1; then
+            ENABLE_NFC=true
+        else
+            warn "NFC hardware is present, but Debian has no 'neard' package candidate; disabling the optional NFC bridge"
+            ENABLE_NFC=false
+        fi
+    else
+        ENABLE_NFC=false
+    fi
 fi
 if [ "$ENABLE_LED" = auto ]; then
     dmi=$(cat /sys/class/dmi/id/product_name /sys/class/dmi/id/board_name 2>/dev/null || true)

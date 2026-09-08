@@ -61,10 +61,12 @@ and [installation guide](https://www.debian.org/releases/trixie/amd64/). Follow
 the ER5A0-specific [clean Debian installation checklist](docs/debian-install.md)
 before applying this profile.
 
-Use Debian Installer (for example, the amd64 netinst image or the installer
-entry on official live media). **Do not use the Debian Live Calamares desktop
-installer for the tested minimal path:** it copies the live desktop and enables
-a display manager, which conflicts with this profile's dedicated tty1 kiosk.
+Use a regular Debian Installer image, preferably the official amd64 netinst
+image (an installer DVD is also suitable). **Do not use a desktop Live ISO for
+the tested minimal path:** its installer may deploy the prebuilt live desktop
+and omit package selection. Calamares advanced mode changes partitioning, not
+the installed package set. If no Software selection screen appears, stop and
+restart with netinst.
 
 Recommended choices:
 
@@ -117,6 +119,12 @@ The profile's system service owns kiosk autostart, so the upstream user service
 must remain disabled. The NFC and LED bridges use a separate root-owned
 credential file so they do
 not decrypt, scrape, or duplicate TouchKio's private configuration:
+
+On Debian 13, `neard` is not currently available from the official repository.
+The default `ENABLE_NFC=auto` therefore warns and leaves the optional NFC bridge
+disabled even when the kernel detects the reader. Explicitly setting it to
+`true` remains fail-closed unless a compatible `neard` package source has been
+reviewed and configured. The core kiosk and LED bridge do not require `neard`.
 
 ```sh
 cp config/mqtt.env.example mqtt.env

@@ -7,7 +7,7 @@
 | Display | Intel i915, eDP 1280x800 | X11 `xrandr` rotation |
 | Touch | FTSC1000 `2808:5012` | XInput coordinate matrix |
 | Backlight | `/sys/class/backlight/intel_backlight` | exact-path sudo rule |
-| NFC | ACPI `NXP1002`, `nxp-nci_i2c`, `nfc0` | neard D-Bus polling |
+| NFC | ACPI `NXP1002`, `nxp-nci_i2c`, `nfc0` | Optional neard D-Bus polling; automatically disabled when the distribution has no `neard` package |
 | Status LED | `INT33FC:01` GPIO lines 15 and 17 | red/green/amber output |
 | White LED | `INT33FC:01` GPIO line 23 | on/off output |
 | Audio | RT5645 family | PulseAudio-compatible session |

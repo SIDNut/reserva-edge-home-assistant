@@ -11,9 +11,11 @@ partitioning script, unattended installer, factory image, or vendor software.
 
 ## 1. Boot official media in 64-bit UEFI mode
 
-Use an official Debian 13 amd64 netinst image, or select the Debian Installer
-entry from official Debian live media. Do not launch Calamares from the live
-desktop for this tested path; it installs the live desktop environment.
+Use an official Debian 13 amd64 netinst image (or a regular installer DVD), not
+a desktop Live ISO. A Live installer may deploy its prebuilt desktop and omit
+the Software selection step; Calamares advanced mode changes partitioning, not
+the installed package set. If Software selection does not appear, stop and
+restart with netinst.
 
 At an installer shell or live shell, these read-only checks should identify an
 ER5A0 and 64-bit UEFI firmware:

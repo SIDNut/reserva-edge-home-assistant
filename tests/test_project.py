@@ -100,6 +100,15 @@ class ProjectTests(unittest.TestCase):
         self.assertNotIn("@PROFILE_", rendered)
         self.assertIn("Conflicts=getty@tty1.service", rendered)
 
+    def test_nfc_auto_mode_is_package_aware(self):
+        installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
+        self.assertIn("apt-cache show neard", installer)
+        self.assertIn("disabling the optional NFC bridge", installer)
+        self.assertRegex(
+            installer,
+            r"(?s)if \[ \"\$ENABLE_NFC\" = auto \]; then.*?ENABLE_NFC=false",
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
