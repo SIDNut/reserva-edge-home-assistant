@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Create the profile user's rootless Xorg log directory on a clean Debian base.
 - Make NFC auto-detection check for an installable APT candidate so Debian 13
   continues with the core kiosk when its repositories do not provide `neard`.
 - Clarify that the tested minimal base requires regular Debian Installer media,

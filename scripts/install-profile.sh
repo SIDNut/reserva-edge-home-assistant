@@ -131,7 +131,13 @@ sed "s|@PROFILE_USER@|$PROFILE_USER|g" "$PROJECT_ROOT/payload/etc/sudoers.d/rese
 visudo -cf "$temporary"
 install -o root -g root -m 0440 "$temporary" /etc/sudoers.d/reserva-edge-profile
 
-install -d -o "$PROFILE_USER" -g "$PROFILE_USER" -m 0700 "$PROFILE_HOME/.config/reserva-edge" "$PROFILE_HOME/.local/state"
+install -d -o "$PROFILE_USER" -g "$PROFILE_USER" -m 0700 \
+    "$PROFILE_HOME/.config" \
+    "$PROFILE_HOME/.config/reserva-edge" \
+    "$PROFILE_HOME/.local" \
+    "$PROFILE_HOME/.local/state" \
+    "$PROFILE_HOME/.local/share" \
+    "$PROFILE_HOME/.local/share/xorg"
 for group in audio video input render; do
     getent group "$group" >/dev/null 2>&1 && usermod -aG "$group" "$PROFILE_USER"
 done

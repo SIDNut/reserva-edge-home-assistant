@@ -111,6 +111,10 @@ class ProjectTests(unittest.TestCase):
             r"(?s)if \[ \"\$ENABLE_NFC\" = auto \]; then.*?ENABLE_NFC=false",
         )
 
+    def test_installer_creates_rootless_xorg_log_directory(self):
+        installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
+        self.assertIn('$PROFILE_HOME/.local/share/xorg', installer)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
