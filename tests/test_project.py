@@ -102,7 +102,9 @@ class ProjectTests(unittest.TestCase):
 
     def test_nfc_auto_mode_is_package_aware(self):
         installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
-        self.assertIn("apt-cache show neard", installer)
+        self.assertIn("apt-cache policy neard", installer)
+        self.assertIn("neard_candidate", installer)
+        self.assertIn("neard_available", installer)
         self.assertIn("disabling the optional NFC bridge", installer)
         self.assertRegex(
             installer,

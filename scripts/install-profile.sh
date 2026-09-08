@@ -32,9 +32,13 @@ preflight_arg=
 is_true "$ALLOW_UNVERIFIED_HARDWARE" && preflight_arg=--allow-unsupported
 "$SCRIPT_DIR/preflight.sh" $preflight_arg
 
+neard_candidate=$(apt-cache policy neard 2>/dev/null | sed -n 's/^[[:space:]]*Candidate:[[:space:]]*//p')
+neard_available=false
+[ -n "$neard_candidate" ] && [ "$neard_candidate" != '(none)' ] && neard_available=true
+
 if [ "$ENABLE_NFC" = auto ]; then
     if [ -e /sys/class/nfc/nfc0 ]; then
-        if apt-cache show neard >/dev/null 2>&1; then
+        if $neard_available; then
             ENABLE_NFC=true
         else
             warn "NFC hardware is present, but Debian has no 'neard' package candidate; disabling the optional NFC bridge"
@@ -83,7 +87,7 @@ apt-get update
 # shellcheck disable=SC2086
 DEBIAN_FRONTEND=noninteractive apt-get install -y $base_packages
 if is_true "$ENABLE_NFC"; then
-    apt-cache show neard >/dev/null 2>&1 || die "Debian package 'neard' is unavailable; disable NFC or resolve the package source"
+    $neard_available || die "Debian package 'neard' has no installation candidate; disable NFC or resolve the package source"
     # shellcheck disable=SC2086
     DEBIAN_FRONTEND=noninteractive apt-get install -y $nfc_packages
 fi
