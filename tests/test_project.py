@@ -120,6 +120,11 @@ class ProjectTests(unittest.TestCase):
         self.assertIn("avahi-daemon", installer)
         self.assertIn("libnss-mdns", installer)
 
+    def test_reapply_restarts_kiosk_with_new_configuration(self):
+        installer = (ROOT / "scripts/install-profile.sh").read_text(encoding="utf-8")
+        self.assertIn("systemctl enable reserva-edge-kiosk.service", installer)
+        self.assertIn("systemctl restart reserva-edge-kiosk.service", installer)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

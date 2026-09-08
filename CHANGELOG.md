@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restart the kiosk when reapplying the profile so configuration changes take
+  effect immediately.
 - Install Avahi and NSS mDNS support so the default `homeassistant.local` URL
   resolves on a minimal Debian installation.
 - Create the profile user's rootless Xorg log directory on a clean Debian base.

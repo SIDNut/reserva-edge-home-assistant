@@ -144,7 +144,8 @@ done
 
 systemctl daemon-reload
 systemctl disable --now getty@tty1.service 2>/dev/null || true
-systemctl enable --now reserva-edge-kiosk.service
+systemctl enable reserva-edge-kiosk.service
+systemctl restart reserva-edge-kiosk.service
 
 info "Core profile installed. Optional MQTT bridges remain disabled until configure-mqtt.sh installs credentials."
 info "Run: sudo $SCRIPT_DIR/smoke-test.sh"
