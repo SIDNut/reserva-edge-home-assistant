@@ -23,6 +23,7 @@ class ProjectTests(unittest.TestCase):
             "config/mqtt.env.example",
             "scripts/preflight.sh",
             "scripts/install-profile.sh",
+            "scripts/configure-touchkio-mqtt.sh",
             "scripts/configure-mqtt.sh",
             "scripts/uninstall-profile.sh",
             "scripts/smoke-test.sh",
@@ -136,6 +137,21 @@ class ProjectTests(unittest.TestCase):
         self.assertIn("org.onboard system-theme-tracking-enabled false", session)
         self.assertIn("org.onboard.window docking-enabled false", session)
         self.assertIn("org.onboard.window force-to-top true", session)
+
+    def test_touchkio_mqtt_setup_preserves_managed_launcher(self):
+        setup = (ROOT / "scripts/configure-touchkio-mqtt.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("touchkio --setup", setup)
+        self.assertIn("kiosk.hold", setup)
+        self.assertIn('chmod 0600 "$arguments_file"', setup)
+        self.assertNotIn("MQTT_PASSWORD", setup)
+        self.assertNotRegex(setup, r"\b(?:cat|grep|sed|jq)\b.*Arguments\.json")
+        session = (
+            ROOT / "payload/usr/local/bin/reserva-edge-touch-session"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"--web-url=$HA_URL"', session)
+        self.assertIn('"--web-theme=$TOUCHKIO_THEME"', session)
 
 
 if __name__ == "__main__":

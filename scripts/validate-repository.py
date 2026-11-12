@@ -22,8 +22,13 @@ BANNED_PATTERNS = {
     "historical fixed device ID": re.compile(r"rpi_75CE76", re.I),
     "historical device name": re.compile(r"reserva-1", re.I),
     "historical fixed home": re.compile(r"/home/dashboard", re.I),
-    "TouchKio credential scraping": re.compile(r"Arguments\.json|decrypt_touchkio", re.I),
+    "TouchKio credential decryption": re.compile(r"decrypt_touchkio", re.I),
     "private key material": re.compile(r"BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY"),
+}
+TOUCHKIO_ARGUMENTS_MENTION_ALLOWLIST = {
+    Path("README.md"),
+    Path("docs/recovery.md"),
+    Path("scripts/configure-touchkio-mqtt.sh"),
 }
 
 
@@ -54,6 +59,11 @@ def main() -> int:
             continue
         if relative == Path("scripts/validate-repository.py"):
             continue
+        if (
+            "Arguments.json" in content
+            and relative not in TOUCHKIO_ARGUMENTS_MENTION_ALLOWLIST
+        ):
+            problems.append(f"TouchKio credential scraping: {relative}")
         for label, pattern in BANNED_PATTERNS.items():
             if pattern.search(content):
                 problems.append(f"{label}: {relative}")

@@ -107,18 +107,25 @@ inspect the plan without writing, or `--yes` only in reviewed automation.
 
 ### 5. Configure TouchKio and optional MQTT bridges
 
-Run TouchKio's own setup as the configured profile user if its MQTT features
-are wanted:
+Run TouchKio's own supported interactive setup as the configured profile user
+if its MQTT controls and sensors are wanted:
 
 ```sh
-touchkio --setup
-systemctl --user disable --now touchkio.service
+./scripts/configure-touchkio-mqtt.sh
 ```
+
+Enter the broker address, username and password only in that local prompt. Do
+not paste the prompt output into an issue or chat: TouchKio's final confirmation
+may display the entered values. Once setup opens its temporary kiosk window,
+press `Ctrl+C`; the helper locks `~/.config/touchkio/Arguments.json` to mode
+`0600` and resumes the managed kiosk. TouchKio merges that file with the
+launcher's command-line settings, so the profile remains authoritative for the
+dashboard URL, browser theme, zoom and widget behavior.
 
 The profile's system service owns kiosk autostart, so the upstream user service
 must remain disabled. The NFC and LED bridges use a separate root-owned
-credential file so they do
-not decrypt, scrape, or duplicate TouchKio's private configuration:
+credential file; they do not decrypt, scrape, or duplicate TouchKio's private
+configuration:
 
 On Debian 13, `neard` is not currently available from the official repository.
 The default `ENABLE_NFC=auto` therefore warns and leaves the optional NFC bridge

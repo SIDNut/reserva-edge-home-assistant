@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a supported, credential-safe TouchKio MQTT commissioning helper that
+  preserves the profile-managed dashboard and browser settings.
 - Restart the kiosk when reapplying the profile so configuration changes take
   effect immediately.
 - Install Avahi and NSS mDNS support so the default `homeassistant.local` URL

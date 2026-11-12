@@ -25,6 +25,17 @@ rm ~/.config/reserva-edge/kiosk.hold
 The first command lets the current TouchKio process exit and prevents its
 restart. Remove the marker to allow it to start again.
 
+The supported TouchKio MQTT commissioning helper manages this hold marker and
+restores the kiosk automatically, including when setup is interrupted:
+
+```sh
+./scripts/configure-touchkio-mqtt.sh
+```
+
+Run it as the configured kiosk user, never with `sudo`. The generated
+`~/.config/touchkio/Arguments.json` is private device state and must not be
+attached to issues or committed.
+
 ## Inspect logs
 
 ```sh
