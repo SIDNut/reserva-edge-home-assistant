@@ -127,11 +127,10 @@ must remain disabled. The NFC and LED bridges use a separate root-owned
 credential file; they do not decrypt, scrape, or duplicate TouchKio's private
 configuration:
 
-On Debian 13, `neard` is not currently available from the official repository.
-The default `ENABLE_NFC=auto` therefore warns and leaves the optional NFC bridge
-disabled even when the kernel detects the reader. Explicitly setting it to
-`true` remains fail-closed unless a compatible `neard` package source has been
-reviewed and configured. The core kiosk and LED bridge do not require `neard`.
+If APT has no `neard` candidate, the profile can reuse an enabled and running
+`neard.service` that owns `org.neard` on the system bus. Without either source,
+`ENABLE_NFC=auto` leaves NFC disabled and `ENABLE_NFC=true` fails. The kiosk
+and LED bridge do not require `neard`.
 
 ```sh
 cp config/mqtt.env.example mqtt.env

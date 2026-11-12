@@ -35,10 +35,16 @@ is_true "$ALLOW_UNVERIFIED_HARDWARE" && preflight_arg=--allow-unsupported
 neard_candidate=$(apt-cache policy neard 2>/dev/null | sed -n 's/^[[:space:]]*Candidate:[[:space:]]*//p')
 neard_available=false
 [ -n "$neard_candidate" ] && [ "$neard_candidate" != '(none)' ] && neard_available=true
+neard_existing=false
+if systemctl is-enabled --quiet neard.service && systemctl is-active --quiet neard.service; then
+    if busctl --system --list 2>/dev/null | awk '{print $1}' | grep -qx org.neard; then
+        neard_existing=true
+    fi
+fi
 
 if [ "$ENABLE_NFC" = auto ]; then
     if [ -e /sys/class/nfc/nfc0 ]; then
-        if $neard_available; then
+        if $neard_available || $neard_existing; then
             ENABLE_NFC=true
         else
             warn "NFC hardware is present, but Debian has no 'neard' package candidate; disabling the optional NFC bridge"
@@ -78,7 +84,7 @@ if [ -n "$TOUCHKIO_DEB" ]; then
 fi
 
 base_packages='xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils xinput openbox unclutter-xfixes onboard at-spi2-core libglib2.0-bin pulseaudio pulseaudio-utils alsa-ucm-conf xprintidle util-linux sudo ca-certificates python3 avahi-daemon libnss-mdns'
-nfc_packages='neard python3-dbus python3-paho-mqtt'
+nfc_packages='python3-dbus python3-paho-mqtt'
 led_packages='gpiod python3-libgpiod python3-paho-mqtt'
 
 info "Refreshing Debian package metadata"
@@ -87,7 +93,13 @@ apt-get update
 # shellcheck disable=SC2086
 DEBIAN_FRONTEND=noninteractive apt-get install -y $base_packages
 if is_true "$ENABLE_NFC"; then
-    $neard_available || die "Debian package 'neard' has no installation candidate; disable NFC or resolve the package source"
+    if $neard_existing; then
+        info "Reusing the existing enabled neard service"
+    elif $neard_available; then
+        nfc_packages="neard $nfc_packages"
+    else
+        die "NFC needs an installable neard package or an enabled and running neard service"
+    fi
     # shellcheck disable=SC2086
     DEBIAN_FRONTEND=noninteractive apt-get install -y $nfc_packages
 fi
