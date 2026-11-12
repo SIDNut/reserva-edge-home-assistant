@@ -53,7 +53,7 @@ fi
 while :; do
     idle=$(xprintidle 2>/dev/null || printf '0')
     current=$(cat "$BACKLIGHT/brightness")
-    if [ "$idle" -ge "$threshold" ]; then
+    if [ "$idle" -ge "$threshold" ] && [ ! -e /run/reserva-edge-led/notification-awake ]; then
         if [ "$dimmed" -eq 0 ]; then
             if valid_restore "$current"; then
                 restore=$current

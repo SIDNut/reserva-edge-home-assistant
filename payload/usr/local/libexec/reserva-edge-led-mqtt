@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import time
+import threading
+from pathlib import Path
 
 import gpiod
 from gpiod.line import Direction, Value
@@ -25,6 +27,9 @@ STATUS_VALUES = {
     "red": (1, 0),
     "amber": (1, 1),
 }
+PATTERNS = {"solid": 0, "slow": 1, "medium": 0.5, "fast": 0.25}
+RUNTIME = Path("/run/reserva-edge-led")
+CHIMES = {"doorbell", "laundry", "info"}
 
 
 def find_gpio_chip() -> str:
@@ -45,6 +50,8 @@ class Bridge:
         self.white = False
         self.running = True
         self.last_outputs = None
+        self.notifications = {}
+        self.lock = threading.Lock()
 
         settings = gpiod.LineSettings(direction=Direction.OUTPUT, output_value=Value.INACTIVE)
         self.lines = gpiod.request_lines(
@@ -59,15 +66,15 @@ class Bridge:
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
 
-    def apply_outputs(self):
-        red, green = STATUS_VALUES[self.status]
-        outputs = (red, green, int(self.white))
+    def apply_outputs(self, status=None, white=None):
+        red, green = STATUS_VALUES[self.status if status is None else status]
+        outputs = (red, green, int(self.white if white is None else white))
         if outputs == self.last_outputs:
             return
         self.lines.set_values({
             15: Value.ACTIVE if red else Value.INACTIVE,
             17: Value.ACTIVE if green else Value.INACTIVE,
-            23: Value.ACTIVE if self.white else Value.INACTIVE,
+            23: Value.ACTIVE if outputs[2] else Value.INACTIVE,
         })
         self.last_outputs = outputs
 
@@ -117,6 +124,8 @@ class Bridge:
             return
         client.subscribe(f"{self.base}/status/set", qos=1)
         client.subscribe(f"{self.base}/white/set", qos=1)
+        client.subscribe(f"{self.base}/notification/set", qos=1)
+        client.subscribe(f"{self.base}/chime/set", qos=1)
         self.publish_discovery()
         self.publish_state()
         client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
@@ -130,6 +139,17 @@ class Bridge:
     def on_message(self, client, userdata, message):
         payload = message.payload.decode("utf-8").strip()
         try:
+            if message.topic == f"{self.base}/notification/set":
+                if not message.retain:
+                    self.update_notification(json.loads(payload))
+                return
+            if message.topic == f"{self.base}/chime/set":
+                if not message.retain:
+                    name = json.loads(payload).get("name", "info") if payload.startswith("{") else payload
+                    if name not in CHIMES:
+                        raise ValueError("unknown chime")
+                    (RUNTIME / name).touch()
+                return
             if message.topic == f"{self.base}/status/set":
                 requested = payload.lower()
                 if requested not in STATUS_VALUES:
@@ -141,10 +161,47 @@ class Bridge:
                 self.white = payload.upper() == "ON"
             else:
                 return
-            self.apply_outputs()
             self.publish_state()
         except Exception:
             LOG.exception("Rejected MQTT LED command")
+
+    def update_notification(self, command):
+        name = str(command["id"]).strip()
+        action = command.get("action", "set")
+        if not name or action not in {"set", "clear"}:
+            raise ValueError("invalid notification command")
+        with self.lock:
+            if action == "clear":
+                self.notifications.pop(name, None)
+                return
+            status = str(command.get("status", "amber")).lower()
+            interval = PATTERNS[command.get("pattern", "solid")]
+            if status not in STATUS_VALUES:
+                raise ValueError("unknown notification status")
+            now = time.monotonic()
+            ttl = max(0, float(command.get("ttl", 0)))
+            self.notifications[name] = (
+                int(command.get("priority", 10)), now, now + ttl if ttl else None,
+                status, bool(command.get("white", False)), interval, bool(command.get("wake", False)),
+            )
+
+    def render(self):
+        now = time.monotonic()
+        with self.lock:
+            self.notifications = {k: v for k, v in self.notifications.items() if v[2] is None or v[2] > now}
+            selected = max(self.notifications.values(), key=lambda v: v[:2], default=None)
+        wake = RUNTIME / "notification-awake"
+        if selected and selected[6]:
+            if not wake.exists():
+                wake.touch()
+        elif wake.exists():
+            wake.unlink(missing_ok=True)
+        if selected:
+            _, started, _, status, white, interval, _ = selected
+            visible = not interval or int((now - started) / interval) % 2 == 0
+            self.apply_outputs(status if visible else "off", white)
+        else:
+            self.apply_outputs()
 
     def stop(self, *_args):
         self.running = False
@@ -157,7 +214,8 @@ class Bridge:
         self.client.loop_start()
         try:
             while self.running:
-                time.sleep(0.5)
+                self.render()
+                time.sleep(0.05)
         finally:
             self.status = "off"
             self.white = False

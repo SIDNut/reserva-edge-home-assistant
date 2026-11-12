@@ -10,6 +10,25 @@ CONFIG=/etc/reserva-edge/profile.env
 export HOME="$PROFILE_HOME"
 export NO_AT_BRIDGE=0
 
+# Play only named, packaged sounds in the kiosk user's audio session.
+(
+    doorbell=0 laundry=0 info=0
+    while :; do
+        for name in doorbell laundry info; do
+            stamp=$(stat -c '%y' "/run/reserva-edge-led/$name" 2>/dev/null) || continue
+            case "$name" in
+                doorbell) previous=$doorbell; doorbell=$stamp; sound=phone-incoming-call ;;
+                laundry) previous=$laundry; laundry=$stamp; sound=bell ;;
+                info) previous=$info; info=$stamp; sound=message ;;
+            esac
+            if [ "$stamp" != "$previous" ]; then
+                paplay "/usr/share/sounds/freedesktop/stereo/$sound.oga" >/dev/null 2>&1 &
+            fi
+        done
+        sleep 0.2
+    done
+) &
+
 if command -v gsettings >/dev/null 2>&1; then
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
     gsettings set org.onboard.auto-show enabled true
